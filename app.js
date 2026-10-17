@@ -15,6 +15,7 @@ $("month").value=today().slice(0,7);
 function state(r){return r.paid?"paid":r.date<today()?"late":"pending"}
 function node(tag,text,cls){const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e}
 function render(){
+renderCentralizer();
 const month=$("month").value,all=data.flatMap(installments),rows=all.filter(r=>r.date.slice(0,7)===month).sort((a,b)=>a.date.localeCompare(b.date));
 const total=rows.reduce((s,r)=>s+r.cents,0),paid=rows.filter(r=>r.paid).reduce((s,r)=>s+r.cents,0),future=all.filter(r=>r.item.parts>1&&!r.paid&&r.date.slice(0,7)>month).reduce((s,r)=>s+r.cents,0);
 $("total").textContent=money(total);$("paid").textContent=money(paid);$("pending").textContent=money(total-paid);$("future").textContent=money(future);
@@ -33,3 +34,30 @@ $("import").onclick=()=>$("backupFile").click();$("backupFile").onchange=async e
 render();
 
 if(ledger)ReisDrive.start(ledger,items=>{data=items;render()});
+
+function creditorKey(description){return description.normalize("NFC").trim().replace(/\s+/g," ").toLocaleLowerCase("pt-BR")}
+function creditorSummary(items,month,key){
+const rows=items.filter(item=>creditorKey(item.description)===key).flatMap(installments).filter(r=>r.date.slice(0,7)===month).sort((a,b)=>a.date.localeCompare(b.date)||a.item.description.localeCompare(b.item.description,"pt-BR"));
+const total=rows.reduce((sum,r)=>sum+r.cents,0),paid=rows.filter(r=>r.paid).reduce((sum,r)=>sum+r.cents,0);
+return {rows,total,paid,pending:total-paid};
+}
+function renderCentralizer(){
+const select=$("creditorSelect"),previous=select.value,creditors=new Map();
+data.forEach(item=>{const key=creditorKey(item.description);if(!creditors.has(key))creditors.set(key,item.description.trim().replace(/\s+/g," "))});
+select.replaceChildren(new Option("Selecione um credor",""));
+[...creditors].sort((a,b)=>a[1].localeCompare(b[1],"pt-BR")).forEach(([key,label])=>select.add(new Option(label,key)));
+select.value=creditors.has(previous)?previous:"";
+const month=$("month").value;
+$("centralMonth").textContent=month?new Date(month+"-01T12:00:00").toLocaleDateString("pt-BR",{month:"long",year:"numeric"}):"Selecione o mês";
+$("centralResults").hidden=!select.value;$("centralPrompt").hidden=!!select.value;
+$("centralPrompt").textContent=creditors.size?"Selecione um credor para ver o resumo.":"Cadastre um gasto para começar a centralizar por credor.";
+$("creditorRows").replaceChildren();
+if(!select.value)return;
+const summary=creditorSummary(data,month,select.value);
+$("creditorTotal").textContent=money(summary.total);$("creditorPaid").textContent=money(summary.paid);$("creditorPending").textContent=money(summary.pending);
+$("creditorTable").hidden=!summary.rows.length;$("creditorEmpty").hidden=!!summary.rows.length;
+summary.rows.forEach(r=>{const tr=node("tr"),desc=node("td");desc.append(node("strong",r.item.description),node("small",r.item.parts===1?"À vista":"Parcela "+(r.index+1)+" de "+r.item.parts));const status=node("td");status.append(node("span",r.paid?"Pago":state(r)==="late"?"Atrasado":"Em aberto","status "+(r.paid?"paid":state(r)==="late"?"late":"")));tr.append(desc,node("td",r.date.split("-").reverse().join("/")),node("td",money(r.cents)),status);$("creditorRows").append(tr)});
+}
+$("centralToggle").onclick=()=>{const open=$("centralPanel").hidden;$("centralPanel").hidden=!open;$("centralToggle").setAttribute("aria-expanded",String(open));if(open){renderCentralizer();$("creditorSelect").focus()}};
+$("centralClose").onclick=()=>{$("centralPanel").hidden=true;$("centralToggle").setAttribute("aria-expanded","false");$("centralToggle").focus()};
+$("creditorSelect").onchange=renderCentralizer;

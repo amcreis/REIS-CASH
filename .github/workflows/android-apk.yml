@@ -1,0 +1,40 @@
+name: Android APK
+on:
+  push:
+    paths:
+      - 'android/**'
+      - '.github/workflows/android-apk.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Build APK
+        working-directory: android
+        run: gradle :app:assembleDebug --no-daemon --stacktrace
+      - name: Verify and package
+        shell: bash
+        run: |
+          mkdir -p apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk apk/REIS-CASH-1.0.0.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs apk/REIS-CASH-1.0.0.apk > apk/verification.txt
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging apk/REIS-CASH-1.0.0.apk > apk/package-info.txt
+          cd apk
+          sha256sum REIS-CASH-1.0.0.apk > SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: REIS-CASH-Android
+          path: apk/
+          retention-days: 90
+          if-no-files-found: error

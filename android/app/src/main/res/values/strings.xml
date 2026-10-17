@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">REIS CASH</string>
+    <string name="tagline">Seu dinheiro, em ordem.</string>
+    <string name="welcome">Suas contas, parcelas e credores em um só lugar. Conecte a mesma conta Google para sincronizar seus dados.</string>
+    <string name="open_cash">Abrir REIS CASH</string>
+    <string name="no_browser">Para usar o REIS CASH, instale ou ative um navegador compatível, como o Chrome, e toque em Abrir REIS CASH.</string>
+</resources>

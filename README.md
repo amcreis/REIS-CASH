@@ -35,3 +35,10 @@ GitHub Pages: branch `main`, pasta raiz. Arquivos estáticos sem dependências d
 
 ## Validação
 Testes locais cobrem migração, combinação de pagamentos, exclusões concorrentes, restauração, isolamento de conta, persistência, falha de armazenamento, envio/repetição simulados, expiração e ausência de tokens no armazenamento. A autorização e sincronização reais precisam ser confirmadas na conta Google do usuário.
+
+## Contas fixas mensais
+Marque **Conta fixa — repetir todo mês** ao cadastrar um gasto. O valor passa a ser mensal e o primeiro vencimento define o dia de cada mês. Em meses curtos, o vencimento usa o último dia. A recorrência aparece automaticamente nos meses consultados, sem criar cópias duplicadas nem exigir que o site permaneça aberto. Os pagamentos são independentes por mês e sincronizados no Drive.
+
+O campo **Último mês** é opcional e inclusivo. Para encerrar uma conta fixa, edite e preencha esse campo: os meses anteriores e os pagamentos permanecem no histórico. Alterar valor ou vencimento da série afeta também os meses antigos, com confirmação; para um reajuste a partir de um mês, encerre a série anterior e crie uma nova. Excluir remove a série inteira. Contas fixas aparecem no centralizador por credor e no total mensal; o cartão Parcelas futuras continua reservado a compras parceladas.
+
+Atualize a página em todos os dispositivos antes de editar contas fixas para utilizar a versão que reconhece recorrências. Backups preservam a configuração e os pagamentos mensais.

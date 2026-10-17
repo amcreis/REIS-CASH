@@ -9,16 +9,18 @@ const records=new Map();
 for(const event of [...events].sort(cmp))for(const c of event.changes){
 const r=records.get(c.id)||{id:c.id,deleted:false,payments:{}};
 if(c.details)Object.assign(r,c.details);
+if(c.creditor!==undefined)r.creditor=c.creditor;
 if(c.deleted!==undefined)r.deleted=c.deleted;
 Object.assign(r.payments,c.payments||{});records.set(c.id,r);
 }
-const items=[...records.values()].filter(r=>!r.deleted).map(r=>({id:r.id,...Object.fromEntries(FIELDS.map(f=>[f,r[f]])),paid:Object.keys(r.payments).filter(i=>r.payments[i]&&Number(i)<r.parts).map(Number).sort((a,b)=>a-b)}));
+const items=[...records.values()].filter(r=>!r.deleted).map(r=>({id:r.id,creditor:r.creditor||"",...Object.fromEntries(FIELDS.map(f=>[f,r[f]])),paid:Object.keys(r.payments).filter(i=>r.payments[i]&&Number(i)<r.parts).map(Number).sort((a,b)=>a-b)}));
 if(!valid(items))throw Error("Dados sincronizados inválidos.");return items
 }
 function checkEvent(e,valid){
 if(!e||typeof e.id!=="string"||e.id.length>150||!Number.isSafeInteger(e.clock)||e.clock<0||!Array.isArray(e.changes)||e.changes.length>10000)throw Error("Histórico inválido.");
 for(const c of e.changes){
 if(!c||typeof c.id!=="string"||c.id.length>150||!c.id||c.deleted!==undefined&&typeof c.deleted!=="boolean")throw Error("Registro inválido.");
+if(c.creditor!==undefined&&(typeof c.creditor!=="string"||c.creditor.length>100))throw Error("Credor inválido.");
 if(c.details&&(!valid([{id:c.id,...c.details,paid:[]}])||Object.keys(c.details).some(k=>!FIELDS.includes(k))))throw Error("Gasto inválido.");
 if(c.payments&&(typeof c.payments!=="object"||Array.isArray(c.payments)||Object.entries(c.payments).some(([k,v])=>!/^\d+$/.test(k)||Number(k)>=120||typeof v!=="boolean")))throw Error("Pagamento inválido.");
 }
@@ -27,6 +29,7 @@ return e
 function diff(before,after){
 const changes=[],old=new Map(before.map(x=>[x.id,x])),next=new Map(after.map(x=>[x.id,x]));
 for(const [id,a] of next){const b=old.get(id),change={id};if(!b||FIELDS.some(f=>a[f]!==b[f]))change.details=Object.fromEntries(FIELDS.map(f=>[f,a[f]]));
+if((a.creditor||"")!==(b?.creditor||""))change.creditor=a.creditor||"";
 if(!b)change.deleted=false;
 const payments={};for(let i=0;i<Math.max(a.parts,b?.parts||0);i++)if(!b||a.paid.includes(i)!==b.paid.includes(i))payments[i]=a.paid.includes(i);
 if(Object.keys(payments).length)change.payments=payments;

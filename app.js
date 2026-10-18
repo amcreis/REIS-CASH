@@ -81,23 +81,36 @@ for(const row of rows){const key=row.date.slice(0,7);if(!months.has(key))months.
 return {total:rows.reduce((sum,row)=>sum+row.cents,0),rows,months:[...months.values()]};
 }
 function monthLabel(month){return new Date(month+"-01T12:00:00").toLocaleDateString("pt-BR",{month:"long",year:"numeric"})}
+function futureCreditorSummary(items,month){
+const summary=futureSummary(items,month),groups=new Map();
+for(const row of summary.rows){
+const key=creditorKey(row.item.creditor||"");
+if(!groups.has(key))groups.set(key,{key,name:(row.item.creditor||"").trim().replace(/\s+/g," ")||"Credor não informado",total:0,months:new Set(),rows:[],lastDate:row.date});
+const group=groups.get(key);group.total+=row.cents;group.months.add(row.date.slice(0,7));group.rows.push(row);if(row.date>group.lastDate)group.lastDate=row.date;
+}
+return {...summary,creditors:[...groups.values()].map(group=>({...group,monthCount:group.months.size})).sort((a,b)=>b.total-a.total||a.name.localeCompare(b.name,"pt-BR"))};
+}
 function renderFuture(){
-const summary=futureSummary(data,$("month").value);
-$("futureReference").textContent="Parcelas em aberto após "+monthLabel($("month").value)+".";
+const summary=futureCreditorSummary(data,$("month").value);
+const expanded=new Set([...$("futureMonths").querySelectorAll("details[open]")].map(el=>el.dataset.creditor));
+$("futureReference").textContent="Saldo das parcelas em aberto após "+monthLabel($("month").value)+", por credor.";
 $("futureTotal").textContent=money(summary.total);
-$("futureCount").textContent=summary.rows.length+" parcela(s) em "+summary.months.length+" mês(es)";
+$("futureCount").textContent=summary.creditors.length+" credor(es) · "+summary.rows.length+" parcela(s) em aberto";
 $("futureEmpty").hidden=!!summary.rows.length;
 $("futureMonths").replaceChildren();
-for(const group of summary.months){
-const section=node("section",undefined,"future-month"),heading=node("div",undefined,"future-heading");
-heading.append(node("h3",monthLabel(group.month)),node("strong",money(group.total)));
-section.append(heading);
+for(const group of summary.creditors){
+const section=node("section",undefined,"future-creditor"),heading=node("div",undefined,"future-heading");
+heading.append(node("h3",group.name),node("strong",money(group.total)));section.append(heading);
+section.append(node("p","Falta pagar "+money(group.total)+" a "+group.name+", em "+group.monthCount+(group.monthCount===1?" mês":" meses")+" com parcelas em aberto.","debt-summary"));
+const end=node("p",undefined,"debt-end");end.append(node("span","Último pagamento previsto: "),node("strong",monthLabel(group.lastDate.slice(0,7))+" ("+group.lastDate.split("-").reverse().join("/")+")"));section.append(end);
+const disclosure=node("details");disclosure.dataset.creditor=group.key;disclosure.open=expanded.has(group.key);
+disclosure.append(node("summary","Ver "+group.rows.length+" parcela(s) e vencimentos"));
 for(const row of group.rows){
 const line=node("div",undefined,"future-row"),details=node("div");
-details.append(node("strong",(row.item.creditor||"").trim()||"Credor não informado"),node("span",row.item.description,"future-description"),node("small","Parcela "+(row.index+1)+" de "+row.item.parts+" · Vence em "+row.date.split("-").reverse().join("/")));
-line.append(details,node("strong",money(row.cents),"future-value"));section.append(line);
+details.append(node("strong",row.item.description),node("small","Parcela "+(row.index+1)+" de "+row.item.parts+" · Vence em "+row.date.split("-").reverse().join("/")));
+line.append(details,node("strong",money(row.cents),"future-value"));disclosure.append(line);
 }
-$("futureMonths").append(section);
+section.append(disclosure);$("futureMonths").append(section);
 }
 }
 $("futureToggle").onclick=()=>{renderFuture();$("futureDialog").showModal()};

@@ -25,8 +25,9 @@ function state(r){return r.paid?"paid":r.date<today()?"late":"pending"}
 function node(tag,text,cls){const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e}
 function render(){
 renderCentralizer();
+if($("futureDialog").open)renderFuture();
 const month=$("month").value,all=data.flatMap(item=>installments(item,month)),rows=all.filter(r=>r.date.slice(0,7)===month).sort((a,b)=>a.date.localeCompare(b.date));
-const total=rows.reduce((s,r)=>s+r.cents,0),paid=rows.filter(r=>r.paid).reduce((s,r)=>s+r.cents,0),future=all.filter(r=>r.item.parts>1&&!r.paid&&r.date.slice(0,7)>month).reduce((s,r)=>s+r.cents,0);
+const total=rows.reduce((s,r)=>s+r.cents,0),paid=rows.filter(r=>r.paid).reduce((s,r)=>s+r.cents,0),future=futureSummary(data,month).total;
 $("total").textContent=money(total);$("paid").textContent=money(paid);$("pending").textContent=money(total-paid);$("future").textContent=money(future);
 $("paidNote").textContent=rows.filter(r=>r.paid).length+" conta(s) em dia";$("pendingNote").textContent=rows.filter(r=>state(r)==="late").length+" conta(s) em atraso";$("count").textContent=rows.length+" lançamento(s)";
 const filtered=rows.filter(r=>(!$("categoryFilter").value||r.item.category===$("categoryFilter").value)&&(r.item.description+" "+(r.item.creditor||"")).toLocaleLowerCase("pt-BR").includes($("search").value.toLocaleLowerCase("pt-BR"))&&(!$("statusFilter").value||($("statusFilter").value==="pending"?!r.paid:state(r)===$("statusFilter").value)));
@@ -72,3 +73,32 @@ summary.rows.forEach(r=>{const tr=node("tr"),desc=node("td");desc.append(node("s
 $("centralToggle").onclick=()=>{const open=$("centralPanel").hidden;$("centralPanel").hidden=!open;$("centralToggle").setAttribute("aria-expanded",String(open));if(open){renderCentralizer();$("creditorSelect").focus()}};
 $("centralClose").onclick=()=>{$("centralPanel").hidden=true;$("centralToggle").setAttribute("aria-expanded","false");$("centralToggle").focus()};
 $("creditorSelect").onchange=renderCentralizer;
+
+function futureSummary(items,month){
+const rows=items.filter(item=>item.parts>1&&!item.recurring).flatMap(item=>installments(item,month)).filter(r=>!r.paid&&r.date.slice(0,7)>month).sort((a,b)=>a.date.localeCompare(b.date)||(a.item.creditor||"").localeCompare(b.item.creditor||"","pt-BR")||a.item.description.localeCompare(b.item.description,"pt-BR"));
+const months=new Map();
+for(const row of rows){const key=row.date.slice(0,7);if(!months.has(key))months.set(key,{month:key,total:0,rows:[]});const group=months.get(key);group.rows.push(row);group.total+=row.cents}
+return {total:rows.reduce((sum,row)=>sum+row.cents,0),rows,months:[...months.values()]};
+}
+function monthLabel(month){return new Date(month+"-01T12:00:00").toLocaleDateString("pt-BR",{month:"long",year:"numeric"})}
+function renderFuture(){
+const summary=futureSummary(data,$("month").value);
+$("futureReference").textContent="Parcelas em aberto após "+monthLabel($("month").value)+".";
+$("futureTotal").textContent=money(summary.total);
+$("futureCount").textContent=summary.rows.length+" parcela(s) em "+summary.months.length+" mês(es)";
+$("futureEmpty").hidden=!!summary.rows.length;
+$("futureMonths").replaceChildren();
+for(const group of summary.months){
+const section=node("section",undefined,"future-month"),heading=node("div",undefined,"future-heading");
+heading.append(node("h3",monthLabel(group.month)),node("strong",money(group.total)));
+section.append(heading);
+for(const row of group.rows){
+const line=node("div",undefined,"future-row"),details=node("div");
+details.append(node("strong",(row.item.creditor||"").trim()||"Credor não informado"),node("span",row.item.description,"future-description"),node("small","Parcela "+(row.index+1)+" de "+row.item.parts+" · Vence em "+row.date.split("-").reverse().join("/")));
+line.append(details,node("strong",money(row.cents),"future-value"));section.append(line);
+}
+$("futureMonths").append(section);
+}
+}
+$("futureToggle").onclick=()=>{renderFuture();$("futureDialog").showModal()};
+$("futureClose").onclick=()=>$("futureDialog").close();

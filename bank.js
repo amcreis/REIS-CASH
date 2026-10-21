@@ -4,6 +4,7 @@ const el=id=>document.getElementById(id),make=(tag,text,cls)=>{const e=document.
 let bankStore,items=[],editing=null;
 function error(message){el("bankError").textContent=message;el("bankError").hidden=!message}
 function render(){
+el("bankWithdraw").disabled=!bankStore||!items.length;
 el("bankTotal").textContent=cash(items.reduce((n,x)=>n+x.cents,0));
 el("bankTotals").replaceChildren();for(const type of ReisBankCore.types){const card=make("div",undefined,"card");card.append(make("div",type,"eyebrow"),make("div",cash(items.filter(x=>x.type===type).reduce((n,x)=>n+x.cents,0)),"amount"));el("bankTotals").append(card)}
 el("bankList").replaceChildren();el("bankEmpty").hidden=!!items.length;
@@ -17,6 +18,28 @@ actions.append(make("strong",cash(item.cents),"bank-value"),edit,del);card.appen
 }
 function persist(next){if(!bankStore)return false;try{items=bankStore.write(items,next);render();error("");ReisDrive.changed();return true}catch(e){error("Não foi possível salvar os saldos: "+e.message);return false}}
 function open(item){editing=item?.id||null;el("bankForm").reset();el("bankFormError").textContent="";el("bankName").value=item?.bank||"";el("bankLabel").value=item?.name||"";el("bankType").value=item?.type||ReisBankCore.types[0];el("bankAmount").value=item?item.cents/100:"";el("bankDialogTitle").textContent=item?"Atualizar saldo":"Adicionar saldo";el("bankModal").showModal()}
+function withdrawalPreview(){
+const item=items.find(x=>x.id===el("withdrawAccount").value),amount=Math.round(Number(el("withdrawAmount").value)*100);
+el("withdrawPreview").textContent=item?"Saldo atual: "+cash(item.cents)+(Number.isSafeInteger(amount)&&amount>0?" · Saldo após a retirada: "+cash(item.cents-amount):""):"Selecione a conta de origem.";
+}
+el("bankWithdraw").onclick=()=>{try{items=bankStore.read();render();el("withdrawForm").reset();el("withdrawError").textContent="";el("withdrawAccount").replaceChildren(new Option("Selecione a conta",""));for(const item of items)el("withdrawAccount").add(new Option(item.bank+" · "+item.name+" · "+item.type,item.id));el("withdrawAccount").value="";withdrawalPreview();el("withdrawModal").showModal()}catch(e){error(e.message)}};
+el("withdrawAccount").onchange=withdrawalPreview;el("withdrawAmount").oninput=withdrawalPreview;
+el("withdrawClose").onclick=el("withdrawCancel").onclick=()=>el("withdrawModal").close();
+el("withdrawForm").onsubmit=e=>{
+e.preventDefault();
+const amount=Math.round(Number(el("withdrawAmount").value)*100),id=el("withdrawAccount").value;
+if(!Number.isSafeInteger(amount)||amount<=0||amount>99999999900){el("withdrawError").textContent="Informe um valor maior que zero, com até duas casas decimais.";return}
+try{
+const latest=bankStore.read(),item=latest.find(x=>x.id===id),shown=items.find(x=>x.id===id);
+if(!item){el("withdrawError").textContent="Esta conta não está mais disponível. Feche e selecione outra conta.";return}
+if(!shown||item.cents!==shown.cents){items=latest;withdrawalPreview();el("withdrawError").textContent="O saldo foi atualizado em outra aba. Confira o novo valor e confirme novamente.";return}
+const updated={...item,cents:item.cents-amount,updated:new Date().toISOString()};
+if(!ReisBankCore.valid([updated])){el("withdrawError").textContent="O saldo resultante ultrapassa o limite permitido.";return}
+items=latest;
+if(persist(items.map(x=>x.id===id?updated:x))){el("withdrawModal").close();el("bankNotice").textContent="Retirada de "+cash(amount)+" registrada em "+item.bank+" · "+item.name+". Novo saldo: "+cash(updated.cents);}
+else el("withdrawError").textContent="Não foi possível salvar a retirada. Tente novamente.";
+}catch(err){el("withdrawError").textContent="Não foi possível registrar a retirada: "+err.message}
+};
 function show(bank){el("bankPanel").hidden=!bank;el("debtPanel").hidden=bank;el("new").hidden=bank;el("bankTab").setAttribute("aria-selected",String(bank));el("debtTab").setAttribute("aria-selected",String(!bank));el("bankTab").tabIndex=bank?0:-1;el("debtTab").tabIndex=bank?-1:0;}
 el("bankTab").onclick=()=>show(true);el("debtTab").onclick=()=>show(false);
 for(const id of ["bankTab","debtTab"])el(id).onkeydown=e=>{if(["ArrowLeft","ArrowRight","Home","End"].includes(e.key)){e.preventDefault();const bank=e.key==="End"?true:e.key==="Home"?false:id==="debtTab";show(bank);el(bank?"bankTab":"debtTab").focus()}};

@@ -34,7 +34,7 @@ const body="--"+boundary+"\r\nContent-Type: application/json; charset=UTF-8\r\n\
 await request("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id",{method:"POST",headers:{"Content-Type":"multipart/related; boundary="+boundary},body});
 }
 async function sync(manual=false){
-if(!store||!token||busy||(!manual&&Date.now()<blockedUntil)||document.getElementById("modal").open||document.getElementById("bankModal")?.open)return;
+if(!store||!token||busy||(!manual&&Date.now()<blockedUntil)||document.getElementById("modal").open||document.getElementById("bankModal")?.open||document.getElementById("withdrawModal")?.open)return;
 if(!navigator.onLine){status("Sem conexão · alterações salvas neste navegador");return}
 busy=true;el("syncNow").disabled=true;el("disconnectDrive").disabled=true;status("Sincronizando…");const currentSession=session;
 try{

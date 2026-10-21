@@ -5,7 +5,8 @@ let bankStore,items=[],editing=null;
 function error(message){el("bankError").textContent=message;el("bankError").hidden=!message}
 function render(){
 el("bankWithdraw").disabled=!bankStore||!items.length;
-el("bankTotal").textContent=cash(items.reduce((n,x)=>n+x.cents,0));
+const total=items.reduce((n,x)=>n+x.cents,0);
+el("bankTotal").textContent=cash(total);el("headerBalance").textContent=bankStore?cash(total):"Indisponível";
 el("bankTotals").replaceChildren();for(const type of ReisBankCore.types){const card=make("div",undefined,"card");card.append(make("div",type,"eyebrow"),make("div",cash(items.filter(x=>x.type===type).reduce((n,x)=>n+x.cents,0)),"amount"));el("bankTotals").append(card)}
 el("bankList").replaceChildren();el("bankEmpty").hidden=!!items.length;
 for(const item of [...items].sort((a,b)=>a.bank.localeCompare(b.bank,"pt-BR")||a.name.localeCompare(b.name,"pt-BR"))){

@@ -28,6 +28,7 @@ renderCentralizer();
 if($("futureDialog").open)renderFuture();
 const month=$("month").value,all=data.flatMap(item=>installments(item,month)),rows=all.filter(r=>r.date.slice(0,7)===month).sort((a,b)=>a.date.localeCompare(b.date));
 const total=rows.reduce((s,r)=>s+r.cents,0),paid=rows.filter(r=>r.paid).reduce((s,r)=>s+r.cents,0),future=futureSummary(data,month).total;
+$("headerDebt").textContent=storageBlocked?"Indisponível":money(total);$("headerMonth").textContent=monthLabel(month);
 $("total").textContent=money(total);$("paid").textContent=money(paid);$("pending").textContent=money(total-paid);$("future").textContent=money(future);
 $("paidNote").textContent=rows.filter(r=>r.paid).length+" conta(s) em dia";$("pendingNote").textContent=rows.filter(r=>state(r)==="late").length+" conta(s) em atraso";$("count").textContent=rows.length+" lançamento(s)";
 const filtered=rows.filter(r=>(!$("categoryFilter").value||r.item.category===$("categoryFilter").value)&&(r.item.description+" "+(r.item.creditor||"")).toLocaleLowerCase("pt-BR").includes($("search").value.toLocaleLowerCase("pt-BR"))&&(!$("statusFilter").value||($("statusFilter").value==="pending"?!r.paid:state(r)===$("statusFilter").value)));

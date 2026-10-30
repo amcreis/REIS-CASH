@@ -65,10 +65,11 @@ $("centralMonth").textContent=month?new Date(month+"-01T12:00:00").toLocaleDateS
 $("centralResults").hidden=!select.value;$("centralPrompt").hidden=!!select.value;
 $("centralPrompt").textContent=creditors.size?"Selecione um credor para ver o resumo.":"Cadastre um gasto para começar a centralizar por credor.";
 $("creditorRows").replaceChildren();
-$("settleCreditor").disabled=true;
+$("settleCreditor").disabled=true;$("reopenCreditor").disabled=true;
 if(!select.value)return;
 const summary=creditorSummary(data,month,select.value);
 $("settleCreditor").disabled=storageBlocked||!ledger||summary.pending===0;
+$("reopenCreditor").disabled=storageBlocked||!ledger||summary.paid===0;
 $("creditorTotal").textContent=money(summary.total);$("creditorPaid").textContent=money(summary.paid);$("creditorPending").textContent=money(summary.pending);
 $("creditorTable").hidden=!summary.rows.length;$("creditorEmpty").hidden=!!summary.rows.length;
 summary.rows.forEach(r=>{const tr=node("tr"),desc=node("td");desc.append(node("strong",r.item.description),node("small",r.item.recurring?"Conta fixa mensal":r.item.parts===1?"À vista":"Parcela "+(r.index+1)+" de "+r.item.parts));const status=node("td");status.append(node("span",r.paid?"Pago":state(r)==="late"?"Atrasado":"Em aberto","status "+(r.paid?"paid":state(r)==="late"?"late":"")));tr.append(desc,node("td",r.date.split("-").reverse().join("/")),node("td",money(r.cents)),status);$("creditorRows").append(tr)});
@@ -145,4 +146,32 @@ if(creditorPendingSignature(latest,month,key)!==signature){data=latest;render();
 data=latest;
 if(save(settleCreditorItems(latest,month,key)))toast("Credor quitado em "+monthLabel(month)+": "+money(summary.pending)+".");
 }catch(e){toast("Não foi possível quitar o credor: "+e.message)}
+};
+
+function reopenCreditorItems(items,month,key){
+const next=structuredClone(items),byId=new Map(next.map(item=>[item.id,item]));
+for(const row of creditorSummary(items,month,key).rows.filter(row=>row.paid)){
+const item=byId.get(row.item.id);
+if(item.recurring)item.recurringPaid=(item.recurringPaid||[]).filter(m=>m!==month);
+else item.paid=item.paid.filter(index=>index!==row.index);
+}
+return next;
+}
+function creditorPaidSignature(items,month,key){
+return JSON.stringify(creditorSummary(items,month,key).rows.filter(r=>r.paid).map(r=>[r.item.id,r.index,r.date,r.cents,!!r.item.recurring]).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b))));
+}
+$("reopenCreditor").onclick=()=>{
+const month=$("month").value,key=$("creditorSelect").value;
+if(!ledger||storageBlocked||!key||!validMonth(month))return;
+try{
+data=ledger.read();render();
+const summary=creditorSummary(data,month,key),paidRows=summary.rows.filter(r=>r.paid);
+if(!paidRows.length){toast("Este credor não tem pagamentos registrados no mês selecionado.");return}
+const name=$("creditorSelect").selectedOptions[0]?.textContent||"Credor não informado",signature=creditorPaidSignature(data,month,key);
+if(!confirm("Voltar para pendente "+money(summary.paid)+" de "+name+" em "+monthLabel(month)+"?\n\nSerão reabertos "+paidRows.length+" lançamento(s) pagos deste mês, inclusive os registrados individualmente. Outros meses e os saldos bancários não serão alterados."))return;
+const latest=ledger.read();
+if(creditorPaidSignature(latest,month,key)!==signature){data=latest;render();toast("Os pagamentos foram atualizados em outra aba. Confira o total e tente novamente.");return}
+data=latest;
+if(save(reopenCreditorItems(latest,month,key)))toast("Pagamentos reabertos em "+monthLabel(month)+": "+money(summary.paid)+".");
+}catch(e){toast("Não foi possível reabrir os pagamentos: "+e.message)}
 };

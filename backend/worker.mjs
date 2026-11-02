@@ -41,7 +41,7 @@ export function createWorker({ fetcher = fetch, verify = verifyIdentity, now = D
   let key = '', keyUntil = 0, keyOwner = '', authPending, cached, cacheKey, cacheUntil = 0, pending;
   async function json(url, options = {}) {
     const response = await fetcher(url, { ...options, redirect: 'manual', signal: AbortSignal.timeout(15000) });
-    if (!response.ok) throw new Failure(response.status === 429 ? 429 : 502, response.status === 429 ? 'Limite temporário. Tente novamente mais tarde.' : 'Não foi possível consultar a Pluggy. Os saldos anteriores foram mantidos.');
+    if (!response.ok) throw new Failure(response.status === 429 ? 429 : 502, 'Consulta recusada (HTTP ' + response.status + '; etapa ' + new URL(url).pathname.split('/')[1] + ').');
     return response.json();
   }
   async function apiKey(env) {

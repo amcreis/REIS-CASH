@@ -1,0 +1,11 @@
+{
+  "name": "reis-cash-pluggy",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-10-30",
+  "workers_dev": true,
+  "observability": { "enabled": false },
+  "vars": {
+    "ALLOWED_ORIGIN": "https://amcreis.github.io",
+    "GOOGLE_CLIENT_ID": "687529913098-i781gt7qhdd56bkc0qjpn9pm57bml3oj.apps.googleusercontent.com"
+  }
+}

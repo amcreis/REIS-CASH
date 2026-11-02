@@ -1,0 +1,8 @@
+node_modules/
+backend/dist/
+.wrangler/
+.dev.vars*
+.env*
+*.log
+qa-dev.cjs
+publish-files.cjs

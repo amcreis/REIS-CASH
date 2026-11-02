@@ -1,5 +1,11 @@
 # REIS CASH
 
+## Saldos conectados — Meu Pluggy
+
+A integração pessoal foi preparada com servidor de consulta protegido e permanece desativada até a configuração das contas. Veja o [guia de ativação](PLUGGY.md). O site não contém credenciais secretas. As dívidas continuam independentes dos saldos.
+
+Para testar o servidor e a persistência dos saldos: na pasta `backend`, execute `pnpm install --frozen-lockfile` e `pnpm test`. Use Node.js 24 e pnpm 11.25.0. O teste real do Itaú depende da autorização do proprietário.
+
 Controle pessoal de contas e dívidas: https://amcreis.github.io/REIS-CASH/
 
 ## Sincronização com Google Drive
@@ -42,3 +48,4 @@ Marque **Conta fixa — repetir todo mês** ao cadastrar um gasto. O valor passa
 O campo **Último mês** é opcional e inclusivo. Para encerrar uma conta fixa, edite e preencha esse campo: os meses anteriores e os pagamentos permanecem no histórico. Alterar valor ou vencimento da série afeta também os meses antigos, com confirmação; para um reajuste a partir de um mês, encerre a série anterior e crie uma nova. Excluir remove a série inteira. Contas fixas aparecem no centralizador por credor e no total mensal; o cartão Parcelas futuras continua reservado a compras parceladas.
 
 Atualize a página em todos os dispositivos antes de editar contas fixas para utilizar a versão que reconhece recorrências. Backups preservam a configuração e os pagamentos mensais.
+

@@ -1,0 +1,12 @@
+{
+  "name": "reis-cash-pluggy",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "build": "esbuild worker.mjs --bundle --format=esm --platform=browser --outfile=dist/worker.js",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": { "jose": "^6.1.0" },
+  "devDependencies": { "esbuild": "^0.25.0", "wrangler": "^4.0.0" }
+}

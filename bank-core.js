@@ -2,16 +2,16 @@
 (function(root){
 const STORE="reis-cash-balances-v1",types=["Conta corrente","Poupança","Caixinha","Investimento"];
 const clone=x=>JSON.parse(JSON.stringify(x));
-function valid(items){return Array.isArray(items)&&items.length<=10000&&new Set(items.map(x=>x?.id)).size===items.length&&items.every(x=>x&&typeof x.id==="string"&&x.id.length>0&&x.id.length<=150&&["bank","name"].every(k=>typeof x[k]==="string"&&x[k].trim().length>0&&x[k].length<=100)&&types.includes(x.type)&&Number.isSafeInteger(x.cents)&&Math.abs(x.cents)<=99999999900&&typeof x.updated==="string"&&!isNaN(Date.parse(x.updated)))}
+function valid(items){return Array.isArray(items)&&items.length<=10000&&new Set(items.map(x=>x?.id)).size===items.length&&items.every(x=>x&&typeof x.id==="string"&&x.id.length>0&&x.id.length<=150&&["bank","name"].every(k=>typeof x[k]==="string"&&x[k].trim().length>0&&x[k].length<=100)&&types.includes(x.type)&&Number.isSafeInteger(x.cents)&&Math.abs(x.cents)<=99999999900&&typeof x.updated==="string"&&!isNaN(Date.parse(x.updated))&&((x.source===undefined&&!x.id.startsWith("pluggy-"))||(x.source==="pluggy"&&root.ReisPluggyCore.validSource(x.pluggy)&&x.id==="pluggy-"+x.pluggy.accountId)))}
 function checkEvent(e){if(!e||typeof e.id!=="string"||!e.id||e.id.length>150||!Number.isSafeInteger(e.clock)||e.clock<0||!Array.isArray(e.changes)||e.changes.length>10000)throw Error("Histórico de saldos inválido.");
 for(const c of e.changes)if(!c||typeof c.id!=="string"||!c.id||c.id.length>150||typeof c.deleted!=="boolean"||(!c.deleted&&(!c.value||c.value.id!==c.id||!valid([c.value]))))throw Error("Registro de saldo inválido.");return e}
 function union(...lists){const map=new Map();for(const list of lists)for(const e of list){checkEvent(e);if(map.has(e.id)&&JSON.stringify(map.get(e.id))!==JSON.stringify(e))throw Error("Histórico de saldos inconsistente.");map.set(e.id,e)}return [...map.values()].sort((a,b)=>a.clock-b.clock||a.id.localeCompare(b.id))}
-function replay(events){const records=new Map();for(const e of union(events))for(const c of e.changes){if(c.deleted)records.delete(c.id);else records.set(c.id,clone(c.value))}const items=[...records.values()];if(!valid(items))throw Error("Saldos inválidos.");return items}
+function replay(events){const records=new Map();for(const e of union(events))for(const c of e.changes){if(c.deleted)records.delete(c.id);else {const previous=records.get(c.id),next=c.value;if(previous?.source==="pluggy"&&next.source==="pluggy"&&previous.pluggy.ownerSub===next.pluggy.ownerSub&&Date.parse(previous.pluggy.sourceUpdatedAt)>=Date.parse(next.pluggy.sourceUpdatedAt))continue;records.set(c.id,clone(next))}}const items=[...records.values()];if(!valid(items))throw Error("Saldos inválidos.");return items}
 function create(storage,uuid=()=>crypto.randomUUID(),now=()=>Date.now()){
 let state;
 function load(){const raw=storage.getItem(STORE);if(!raw)return null;const s=JSON.parse(raw);if(s.version!==1||!Array.isArray(s.events)||!Array.isArray(s.uploaded)||s.uploaded.some(x=>typeof x!=="string")||(s.account!==null&&(!s.account||typeof s.account.sub!=="string"||typeof s.account.email!=="string")))throw Error("Armazenamento de saldos inválido.");replay(s.events);return s}
 function refresh(){const s=load();if(s){if(state?.account&&s.account&&state.account.sub!==s.account.sub)throw Error("A conta dos saldos foi alterada em outra aba.");state={...s,events:union(state?.events||[],s.events),uploaded:[...new Set([...(state?.uploaded||[]),...s.uploaded])]}}}
-function commit(s){const items=replay(s.events);storage.setItem(STORE,JSON.stringify(s));state=s;return items}
+function commit(s){const items=replay(s.events);if(s.account&&items.some(x=>x.source==="pluggy"&&x.pluggy.ownerSub!==s.account.sub))throw Error("O saldo conectado pertence a outra conta Google.");storage.setItem(STORE,JSON.stringify(s));state=s;return items}
 state=load();if(!state){state={version:1,account:null,events:[],uploaded:[],lastSync:null};commit(state)}
 return {
 read(){refresh();return replay(state.events)},
@@ -27,3 +27,4 @@ synced(){refresh();commit({...state,lastSync:new Date().toISOString()})}
 }
 root.ReisBankCore={STORE,types,valid,checkEvent,union,replay,create};
 })(typeof window==="undefined"?globalThis:window);
+

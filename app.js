@@ -132,7 +132,7 @@ return next;
 function creditorPendingSignature(items,month,key){
 return JSON.stringify(creditorSummary(items,month,key).rows.filter(r=>!r.paid).map(r=>[r.item.id,r.index,r.date,r.cents,!!r.item.recurring]).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b))));
 }
-$("settleCreditor").onclick=()=>{
+function registerCreditorPayment(){
 const month=$("month").value,key=$("creditorSelect").value;
 if(!ledger||storageBlocked||!key||!validMonth(month))return;
 try{
@@ -146,7 +146,7 @@ if(creditorPendingSignature(latest,month,key)!==signature){data=latest;render();
 data=latest;
 if(save(settleCreditorItems(latest,month,key)))toast("Credor quitado em "+monthLabel(month)+": "+money(summary.pending)+".");
 }catch(e){toast("Não foi possível quitar o credor: "+e.message)}
-};
+}
 
 function reopenCreditorItems(items,month,key){
 const next=structuredClone(items),byId=new Map(next.map(item=>[item.id,item]));
@@ -175,3 +175,28 @@ data=latest;
 if(save(reopenCreditorItems(latest,month,key)))toast("Pagamentos reabertos em "+monthLabel(month)+": "+money(summary.paid)+".");
 }catch(e){toast("Não foi possível reabrir os pagamentos: "+e.message)}
 };
+
+ReisPix.init({
+  creditorId: creditorKey,
+  creditors() {
+    const names = new Map();
+    for (const item of data) {
+      const key = creditorKey(item.creditor || "");
+      if (key !== "__sem_credor__") names.set(key, item.creditor.trim());
+    }
+    return new Map([...names].sort((a, b) => a[1].localeCompare(b[1], "pt-BR")));
+  },
+  quote() {
+    const month = $("month").value, id = $("creditorSelect").value;
+    if (!ledger || storageBlocked || !id || !validMonth(month)) throw Error("Selecione um credor e um mês válidos.");
+    const latest = ledger.read();
+    const cents = creditorSummary(latest, month, id).pending;
+    if (cents <= 0) throw Error("Este credor não tem saldo em aberto no mês.");
+    return {
+      id, month, cents, signature: creditorPendingSignature(latest, month, id),
+      monthLabel: monthLabel(month), amount: money(cents),
+      name: $("creditorSelect").selectedOptions[0].textContent
+    };
+  },
+  settle: registerCreditorPayment
+});

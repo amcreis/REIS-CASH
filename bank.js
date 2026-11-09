@@ -43,9 +43,28 @@ if(persist(items.map(x=>x.id===id?updated:x))){el("withdrawModal").close();el("b
 else el("withdrawError").textContent="Não foi possível salvar a retirada. Tente novamente.";
 }catch(err){el("withdrawError").textContent="Não foi possível registrar a retirada: "+err.message}
 };
-function show(bank){el("bankPanel").hidden=!bank;el("debtPanel").hidden=bank;el("new").hidden=bank;el("bankTab").setAttribute("aria-selected",String(bank));el("debtTab").setAttribute("aria-selected",String(!bank));el("bankTab").tabIndex=bank?0:-1;el("debtTab").tabIndex=bank?-1:0;}
-el("bankTab").onclick=()=>show(true);el("debtTab").onclick=()=>show(false);
-for(const id of ["bankTab","debtTab"])el(id).onkeydown=e=>{if(["ArrowLeft","ArrowRight","Home","End"].includes(e.key)){e.preventDefault();const bank=e.key==="End"?true:e.key==="Home"?false:id==="debtTab";show(bank);el(bank?"bankTab":"debtTab").focus()}};
+const tabs = ["debt", "bank", "pix"];
+function show(active) {
+  for (const name of tabs) {
+    const selected = name === active;
+    el(name + "Panel").hidden = !selected;
+    el(name + "Tab").setAttribute("aria-selected", String(selected));
+    el(name + "Tab").tabIndex = selected ? 0 : -1;
+  }
+  el("new").hidden = active !== "debt";
+}
+for (const [index, name] of tabs.entries()) {
+  const tab = el(name + "Tab");
+  tab.addEventListener("click", () => show(name));
+  tab.onkeydown = event => {
+    const positions = { ArrowLeft: (index + 2) % 3, ArrowRight: (index + 1) % 3, Home: 0, End: 2 };
+    if (!Object.hasOwn(positions, event.key)) return;
+    event.preventDefault();
+    const next = el(tabs[positions[event.key]] + "Tab");
+    next.click();
+    next.focus();
+  };
+}
 ReisBankCore.types.forEach(type=>el("bankType").add(new Option(type,type)));
 el("bankAdd").onclick=()=>open();el("bankClose").onclick=el("bankCancel").onclick=()=>el("bankModal").close();
 el("bankForm").onsubmit=e=>{e.preventDefault();items=bankStore.read();if(editing&&!items.some(x=>x.id===editing&&x.source!=="pluggy")){el("bankFormError").textContent="A conta foi alterada. Feche e abra novamente.";return}const item={id:editing||crypto.randomUUID(),bank:el("bankName").value.trim(),name:el("bankLabel").value.trim(),type:el("bankType").value,cents:Math.round(Number(el("bankAmount").value)*100),updated:new Date().toISOString()};if(!ReisBankCore.valid([item])){el("bankFormError").textContent="Confira o banco, o nome e o valor informado.";return}if(persist(editing?items.map(x=>x.id===editing?item:x):[...items,item]))el("bankModal").close();else el("bankFormError").textContent="Não foi possível salvar. Seus dados anteriores foram mantidos."};

@@ -1,7 +1,6 @@
 "use strict";
 
 window.ReisPix = (() => {
-  const storageKey = "reis-cash-pix-creditors-v1";
   const keyTypes = {
     cpf: "CPF",
     cnpj: "CNPJ",
@@ -69,11 +68,14 @@ window.ReisPix = (() => {
     const dialog = el("pixDialog");
     let current;
     let generated;
+    let store;
+    let loadedRecord = null;
+    let dirty = false;
+    let loadError = "";
 
     function read() {
-      const value = JSON.parse(localStorage.getItem(storageKey) || "[]");
-      if (!Array.isArray(value)) throw Error("O cadastro Pix deste navegador está inválido.");
-      return value;
+      if (!store) throw Error(loadError || "O cadastro Pix está indisponível.");
+      return store.read();
     }
 
     function renderRegistry(preferred = el("pixCreditor").value) {
@@ -87,6 +89,8 @@ window.ReisPix = (() => {
     function loadRecord() {
       const label = el("pixCreditor").value.trim();
       const record = read().find(item => item.id === creditorId(label));
+      loadedRecord = record || null;
+      dirty = false;
       el("pixType").value = record?.type || "cpf";
       el("pixKey").value = record?.key || "";
       el("pixReceiver").value = record?.receiver || label;
@@ -104,6 +108,9 @@ window.ReisPix = (() => {
     }
 
     el("pixTab").addEventListener("click", () => registryAction(() => renderRegistry()));
+    for (const id of ["pixKey", "pixReceiver", "pixCity", "pixType"]) {
+      el(id).addEventListener("input", () => { dirty = true; });
+    }
     el("pixCreditor").onchange = () => registryAction(loadRecord);
     el("pixForm").onsubmit = event => {
       event.preventDefault();
@@ -114,15 +121,20 @@ window.ReisPix = (() => {
         const type = el("pixType").value;
         const record = { id, label, type, key: normalizeKey(type, el("pixKey").value), receiver: el("pixReceiver").value.trim(), city: el("pixCity").value.trim() };
         payload(record, 1);
-        localStorage.setItem(storageKey, JSON.stringify([...read().filter(item => item.id !== id), record]));
+        if (!store) throw Error(loadError);
+        store.write(id, record, loadedRecord?.id === id ? loadedRecord : null);
+        ReisDrive.changed();
         renderRegistry();
-        el("pixRegistryStatus").textContent = "Chave Pix salva neste navegador.";
+        el("pixRegistryStatus").textContent = "Chave Pix salva. Conecte o Google Drive para usar em outros navegadores.";
       });
     };
 
     el("pixRemove").onclick = () => registryAction(() => {
       if (!confirm("Remover a chave Pix deste credor?")) return;
-      localStorage.setItem(storageKey, JSON.stringify(read().filter(item => item.id !== creditorId(el("pixCreditor").value))));
+      const id = creditorId(el("pixCreditor").value);
+      if (!store) throw Error(loadError);
+      store.write(id, null, loadedRecord?.id === id ? loadedRecord : null);
+      ReisDrive.changed();
       loadRecord();
       el("pixRegistryStatus").textContent = "Chave Pix removida.";
     });
@@ -227,6 +239,25 @@ window.ReisPix = (() => {
     });
     el("pixClose").onclick = () => dialog.close();
     dialog.addEventListener("close", resetCode);
+    try {
+      store = ReisPixStore.create(localStorage);
+      ReisDrive.addStore({
+        store, key: ReisPixStore.STORE, prefix: "reis-cash-pix-event-v1-", version: 1,
+        check: ReisPixStore.check,
+        update() {
+          if (generated) {
+            try {
+              const record = read().find(item => item.id === current.id);
+              if (!record || payload(record, current.cents) !== generated) resetCode();
+            } catch { resetCode(); }
+          }
+          if (!el("pixPanel").hidden && !dirty) registryAction(() => renderRegistry());
+        }
+      });
+    } catch (error) {
+      loadError = error.message;
+      el("pixRegistryStatus").textContent = loadError;
+    }
     for (const [value, label] of Object.entries(keyTypes)) el("pixType").add(new Option(label, value));
   }
 

@@ -43,7 +43,7 @@ if(persist(items.map(x=>x.id===id?updated:x))){el("withdrawModal").close();el("b
 else el("withdrawError").textContent="Não foi possível salvar a retirada. Tente novamente.";
 }catch(err){el("withdrawError").textContent="Não foi possível registrar a retirada: "+err.message}
 };
-const tabs = ["debt", "bank", "pix"];
+const tabs = ["debt", "bank", "pix", "creditors"];
 function show(active) {
   for (const name of tabs) {
     const selected = name === active;
@@ -57,7 +57,7 @@ for (const [index, name] of tabs.entries()) {
   const tab = el(name + "Tab");
   tab.addEventListener("click", () => show(name));
   tab.onkeydown = event => {
-    const positions = { ArrowLeft: (index + 2) % 3, ArrowRight: (index + 1) % 3, Home: 0, End: 2 };
+    const positions = { ArrowLeft: (index + tabs.length - 1) % tabs.length, ArrowRight: (index + 1) % tabs.length, Home: 0, End: tabs.length - 1 };
     if (!Object.hasOwn(positions, event.key)) return;
     event.preventDefault();
     const next = el(tabs[positions[event.key]] + "Tab");

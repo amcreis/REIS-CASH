@@ -63,7 +63,7 @@ window.ReisPix = (() => {
     return code + crc16(code);
   }
 
-  function init({ creditors, creditorId, quote, settle }) {
+  function init({ creditors, quote, settle, onRegistryChange }) {
     const el = id => document.getElementById(id);
     const dialog = el("pixDialog");
     let current;
@@ -81,19 +81,23 @@ window.ReisPix = (() => {
     function renderRegistry(preferred = el("pixCreditor").value) {
       const names = new Map(read().map(record => [record.id, record.label || record.receiver]));
       for (const [id, name] of creditors()) names.set(id, name);
-      el("pixCreditorNames").replaceChildren(...[...names.values()].sort((a, b) => a.localeCompare(b, "pt-BR")).map(name => new Option(name, name)));
-      el("pixCreditor").value = preferred;
+      const select = el("pixCreditor");
+      select.replaceChildren(new Option("Selecione um credor", ""));
+      for (const [id, name] of [...names].sort((a, b) => a[1].localeCompare(b[1], "pt-BR"))) {
+        select.add(new Option(name, id));
+      }
+      select.value = names.has(preferred) ? preferred : "";
       loadRecord();
     }
 
     function loadRecord() {
-      const label = el("pixCreditor").value.trim();
-      const record = read().find(item => item.id === creditorId(label));
+      const label = el("pixCreditor").selectedOptions[0]?.textContent || "";
+      const record = read().find(item => item.id === el("pixCreditor").value);
       loadedRecord = record || null;
       dirty = false;
       el("pixType").value = record?.type || "cpf";
       el("pixKey").value = record?.key || "";
-      el("pixReceiver").value = record?.receiver || label;
+      el("pixReceiver").value = record?.receiver || (el("pixCreditor").value ? label : "");
       el("pixCity").value = record?.city || "";
       el("pixRemove").disabled = !record;
     }
@@ -115,15 +119,16 @@ window.ReisPix = (() => {
     el("pixForm").onsubmit = event => {
       event.preventDefault();
       registryAction(() => {
-        const label = el("pixCreditor").value.trim();
-        const id = creditorId(label);
-        if (!label || id === "__sem_credor__") throw Error("Informe o nome do credor.");
+        const id = el("pixCreditor").value;
+        const label = el("pixCreditor").selectedOptions[0]?.textContent || "";
+        if (!id || id === "__sem_credor__") throw Error("Informe o nome do credor.");
         const type = el("pixType").value;
         const record = { id, label, type, key: normalizeKey(type, el("pixKey").value), receiver: el("pixReceiver").value.trim(), city: el("pixCity").value.trim() };
         payload(record, 1);
         if (!store) throw Error(loadError);
         store.write(id, record, loadedRecord?.id === id ? loadedRecord : null);
         ReisDrive.changed();
+        onRegistryChange();
         renderRegistry();
         el("pixRegistryStatus").textContent = "Chave Pix salva. Conecte o Google Drive para usar em outros navegadores.";
       });
@@ -131,10 +136,11 @@ window.ReisPix = (() => {
 
     el("pixRemove").onclick = () => registryAction(() => {
       if (!confirm("Remover a chave Pix deste credor?")) return;
-      const id = creditorId(el("pixCreditor").value);
+      const id = el("pixCreditor").value;
       if (!store) throw Error(loadError);
       store.write(id, null, loadedRecord?.id === id ? loadedRecord : null);
       ReisDrive.changed();
+        onRegistryChange();
       loadRecord();
       el("pixRegistryStatus").textContent = "Chave Pix removida.";
     });
@@ -181,10 +187,10 @@ window.ReisPix = (() => {
     };
 
     el("pixRegisterKey").onclick = () => {
-      const name = current.name;
+      const id = current.id;
       dialog.close();
       el("pixTab").click();
-      registryAction(() => renderRegistry(name));
+      registryAction(() => renderRegistry(id));
       el("pixCreditor").focus();
     };
 
@@ -251,6 +257,7 @@ window.ReisPix = (() => {
               if (!record || payload(record, current.cents) !== generated) resetCode();
             } catch { resetCode(); }
           }
+          onRegistryChange();
           if (!el("pixPanel").hidden && !dirty) registryAction(() => renderRegistry());
         }
       });
@@ -259,6 +266,7 @@ window.ReisPix = (() => {
       el("pixRegistryStatus").textContent = loadError;
     }
     for (const [value, label] of Object.entries(keyTypes)) el("pixType").add(new Option(label, value));
+    return () => store ? store.read().map(record => [record.id, record.label]) : [];
   }
 
   return { init, payload, normalizeKey, crc16 };

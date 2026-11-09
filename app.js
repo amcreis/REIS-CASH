@@ -1,5 +1,7 @@
 "use strict";
 let creditorRegistry;
+let creditorRecords = new Map();
+let editingCreditor = null;
 let pixCreditorNames = () => [];
 const $=id=>document.getElementById(id), KEY="reis-cash-v1", cats=["Alimentação","Moradia","Transporte","Saúde","Educação","Lazer","Compras","Serviços","Outros"];
 const money=n=>(n/100).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
@@ -33,9 +35,9 @@ const total=rows.reduce((s,r)=>s+r.cents,0),paid=rows.filter(r=>r.paid).reduce((
 $("headerDebt").textContent=storageBlocked?"Indisponível":money(total);$("headerMonth").textContent=monthLabel(month);
 $("total").textContent=money(total);$("paid").textContent=money(paid);$("pending").textContent=money(total-paid);$("future").textContent=money(future);
 $("paidNote").textContent=rows.filter(r=>r.paid).length+" conta(s) em dia";$("pendingNote").textContent=rows.filter(r=>state(r)==="late").length+" conta(s) em atraso";$("count").textContent=rows.length+" lançamento(s)";
-const filtered=rows.filter(r=>(!$("categoryFilter").value||r.item.category===$("categoryFilter").value)&&(r.item.description+" "+(r.item.creditor||"")).toLocaleLowerCase("pt-BR").includes($("search").value.toLocaleLowerCase("pt-BR"))&&(!$("statusFilter").value||($("statusFilter").value==="pending"?!r.paid:state(r)===$("statusFilter").value)));
+const filtered=rows.filter(r=>(!$("categoryFilter").value||r.item.category===$("categoryFilter").value)&&(r.item.description+" "+creditorDisplayName(r.item.creditor)).toLocaleLowerCase("pt-BR").includes($("search").value.toLocaleLowerCase("pt-BR"))&&(!$("statusFilter").value||($("statusFilter").value==="pending"?!r.paid:state(r)===$("statusFilter").value)));
 $("rows").replaceChildren();$("table").hidden=!filtered.length;$("empty").hidden=!!filtered.length;$("emptyTitle").textContent=rows.length?"Nenhum gasto encontrado":"Um novo mês, tudo organizado";$("emptyText").textContent=rows.length?"Experimente outra busca ou altere os filtros.":"Adicione seu primeiro gasto e acompanhe tudo por aqui.";$("emptyAdd").hidden=!!rows.length;
-filtered.forEach(r=>{const tr=node("tr"),desc=node("td");desc.append(node("strong",r.item.description),node("small",(r.item.creditor||"Credor não informado")+" · "+r.item.category+" · "+(r.item.recurring?"Conta fixa mensal":r.item.parts===1?"À vista":"Parcela "+(r.index+1)+"/"+r.item.parts)));tr.append(desc,node("td",r.date.split("-").reverse().join("/")),node("td",money(r.cents)));const status=node("td"),b=node("button",r.paid?"✓ Pago":state(r)==="late"?"Atrasado":"Em aberto","status "+(r.paid?"paid":state(r)==="late"?"late":""));b.title=r.paid?"Marcar como em aberto":"Marcar como pago";b.setAttribute("aria-label",b.title+": "+r.item.description+" parcela "+(r.index+1));b.onclick=()=>{const next=structuredClone(data),item=next.find(x=>x.id===r.item.id);if(item.recurring){const month=r.date.slice(0,7);item.recurringPaid=r.paid?(item.recurringPaid||[]).filter(m=>m!==month):[...(item.recurringPaid||[]),month]}else item.paid=r.paid?item.paid.filter(i=>i!==r.index):[...item.paid,r.index];if(save(next))toast(r.paid?"Conta reaberta.":"Pagamento registrado.")};status.append(b);const actions=node("td"),edit=node("button","✎","edit"),del=node("button","×","delete");edit.setAttribute("aria-label","Editar "+r.item.description);del.setAttribute("aria-label","Excluir "+r.item.description);edit.onclick=()=>openForm(r.item);del.onclick=()=>{if(confirm(r.item.recurring?"Excluir toda a conta fixa "+r.item.description+", incluindo seu histórico? Para parar só os próximos meses, edite e informe o último mês.":"Excluir "+r.item.description+" e todas as suas parcelas?"))if(save(data.filter(x=>x.id!==r.item.id)))toast("Gasto excluído.")};actions.append(edit,del);tr.append(status,actions);$("rows").append(tr)});
+filtered.forEach(r=>{const tr=node("tr"),desc=node("td");desc.append(node("strong",r.item.description),node("small",creditorDisplayName(r.item.creditor)+" · "+r.item.category+" · "+(r.item.recurring?"Conta fixa mensal":r.item.parts===1?"À vista":"Parcela "+(r.index+1)+"/"+r.item.parts)));tr.append(desc,node("td",r.date.split("-").reverse().join("/")),node("td",money(r.cents)));const status=node("td"),b=node("button",r.paid?"✓ Pago":state(r)==="late"?"Atrasado":"Em aberto","status "+(r.paid?"paid":state(r)==="late"?"late":""));b.title=r.paid?"Marcar como em aberto":"Marcar como pago";b.setAttribute("aria-label",b.title+": "+r.item.description+" parcela "+(r.index+1));b.onclick=()=>{const next=structuredClone(data),item=next.find(x=>x.id===r.item.id);if(item.recurring){const month=r.date.slice(0,7);item.recurringPaid=r.paid?(item.recurringPaid||[]).filter(m=>m!==month):[...(item.recurringPaid||[]),month]}else item.paid=r.paid?item.paid.filter(i=>i!==r.index):[...item.paid,r.index];if(save(next))toast(r.paid?"Conta reaberta.":"Pagamento registrado.")};status.append(b);const actions=node("td"),edit=node("button","✎","edit"),del=node("button","×","delete");edit.setAttribute("aria-label","Editar "+r.item.description);del.setAttribute("aria-label","Excluir "+r.item.description);edit.onclick=()=>openForm(r.item);del.onclick=()=>{if(confirm(r.item.recurring?"Excluir toda a conta fixa "+r.item.description+", incluindo seu histórico? Para parar só os próximos meses, edite e informe o último mês.":"Excluir "+r.item.description+" e todas as suas parcelas?"))if(save(data.filter(x=>x.id!==r.item.id)))toast("Gasto excluído.")};actions.append(edit,del);tr.append(status,actions);$("rows").append(tr)});
 $("categories").replaceChildren();if(!rows.length)$("categories").append(node("p","As categorias aparecerão assim que você adicionar um gasto.","hint"));cats.map(c=>({name:c,value:rows.filter(r=>r.item.category===c).reduce((s,r)=>s+r.cents,0)})).filter(x=>x.value).sort((a,b)=>b.value-a.value).forEach(c=>{const d=node("div",undefined,"category"),line=node("div",undefined,"line"),track=node("div",undefined,"track"),bar=node("span");line.append(node("span",c.name),node("strong",money(c.value)));bar.style.width=c.value/total*100+"%";track.append(bar);d.append(line,track);$("categories").append(d)})}
 function modeChange(){
 const recurring=$("recurring").checked;if(recurring)$("mode").value="cash";$("mode").disabled=recurring;$("recurringEndLabel").hidden=!recurring;$("valueLabel").textContent=recurring?"Valor mensal (R$)":"Valor total (R$)";
@@ -91,7 +93,7 @@ function futureCreditorSummary(items,month){
 const summary=futureSummary(items,month),groups=new Map();
 for(const row of summary.rows){
 const key=creditorKey(row.item.creditor||"");
-if(!groups.has(key))groups.set(key,{key,name:(row.item.creditor||"").trim().replace(/\s+/g," ")||"Credor não informado",total:0,months:new Set(),rows:[],lastDate:row.date});
+if(!groups.has(key))groups.set(key,{key,name:creditorDisplayName(row.item.creditor),total:0,months:new Set(),rows:[],lastDate:row.date});
 const group=groups.get(key);group.total+=row.cents;group.months.add(row.date.slice(0,7));group.rows.push(row);if(row.date>group.lastDate)group.lastDate=row.date;
 }
 return {...summary,creditors:[...groups.values()].map(group=>({...group,monthCount:group.months.size})).sort((a,b)=>b.total-a.total||a.name.localeCompare(b.name,"pt-BR"))};
@@ -178,6 +180,10 @@ if(save(reopenCreditorItems(latest,month,key)))toast("Pagamentos reabertos em "+
 }catch(e){toast("Não foi possível reabrir os pagamentos: "+e.message)}
 };
 
+function creditorDisplayName(value = "") {
+  return creditorRecords.get(creditorKey(value))?.displayName || value || "Credor não informado";
+}
+
 function creditorDirectory() {
   const names = new Map();
   for (const item of data) {
@@ -188,30 +194,59 @@ function creditorDirectory() {
     for (const [id, name] of pixCreditorNames()) {
       if (id !== "__sem_credor__" && name && !names.has(id)) names.set(id, name);
     }
-    for (const record of creditorRegistry?.read() || []) names.set(record.id, record.label);
+
   } catch {}
+  for (const record of creditorRecords.values()) names.set(record.id, record.displayName || record.label);
   return new Map([...names].sort((a, b) => a[1].localeCompare(b[1], "pt-BR")));
 }
 
 function fillExpenseCreditors(previous) {
   const select = $("creditor");
   const names = creditorDirectory();
-  if (previous) names.set(creditorKey(previous), previous);
+  const previousId = creditorKey(previous);
+  if (previous && !names.has(previousId)) names.set(previousId, previous);
   select.replaceChildren(new Option("Selecione um credor", ""));
-  for (const name of names.values()) {
-    if (name.length <= 100 || name === previous) select.add(new Option(name, name));
+  for (const [id, name] of names) {
+    const original = creditorRecords.get(id)?.label || name;
+    const value = id === previousId ? previous : original;
+    if (value.length <= 100) select.add(new Option(name, value));
   }
   select.value = previous;
 }
 
 function renderCreditorRegistry() {
-  const names = [...creditorDirectory().values()];
-  $("creditorRegistryList").replaceChildren(...(names.length ? names : ["Nenhum credor cadastrado."]).map(name => node("li", name)));
+  const rows = [];
+  for (const [id, name] of creditorDirectory()) {
+    const row = node("li", undefined, "creditor-registry-row");
+    const edit = node("button", "Editar", "central-toggle");
+    edit.type = "button";
+    edit.setAttribute("aria-label", "Editar " + name);
+    edit.onclick = () => {
+      editingCreditor = { id, name, record: creditorRecords.get(id) || null };
+      $("creditorRegistryName").value = name;
+      $("creditorRegistrySubmit").textContent = "Salvar alteração";
+      $("creditorRegistryCancel").hidden = false;
+      $("creditorRegistryStatus").textContent = "Editando " + name;
+      $("creditorRegistryName").focus();
+    };
+    row.append(node("span", name), edit);
+    rows.push(row);
+  }
+  $("creditorRegistryList").replaceChildren(...(rows.length ? rows : [node("li", "Nenhum credor cadastrado.")]));
+}
+
+function resetCreditorForm() {
+  editingCreditor = null;
+  $("creditorRegistryForm").reset();
+  $("creditorRegistrySubmit").textContent = "Cadastrar credor";
+  $("creditorRegistryCancel").hidden = true;
 }
 
 function refreshCreditorDirectory() {
+  if (creditorRegistry) creditorRecords = new Map(creditorRegistry.read().map(record => [record.id, record]));
   if (!$("creditorsPanel").hidden) renderCreditorRegistry();
-  renderCentralizer();
+  render();
+  if ($("modal").open) fillExpenseCreditors($("creditor").value);
 }
 
 function checkCreditorEvent(event) {
@@ -221,7 +256,8 @@ function checkCreditorEvent(event) {
   for (const change of event.changes) {
     const record = change?.value;
     if (!record || typeof record.label !== "string" || !record.label.trim() || record.label.length > 100 ||
-        record.id !== change.id || record.id !== creditorKey(record.label) || record.id === "__sem_credor__") {
+        record.id !== change.id || record.id !== creditorKey(record.label) || record.id === "__sem_credor__" ||
+        (record.displayName !== undefined && (typeof record.displayName !== "string" || !record.displayName.trim() || record.displayName.length > 100))) {
       throw Error("Cadastro de credor inválido.");
     }
   }
@@ -233,11 +269,16 @@ try {
   creditorRegistry = ReisPixStore.create(localStorage, undefined, undefined, { key, legacyKey: null, validate: checkCreditorEvent });
   ReisDrive.addStore({ store: creditorRegistry, key, prefix: "reis-cash-creditor-event-v1-", version: 1,
     check: checkCreditorEvent, update: refreshCreditorDirectory });
+  refreshCreditorDirectory();
 } catch (error) {
   $("creditorRegistryStatus").textContent = error.message;
 }
 
 $("creditorsTab").addEventListener("click", renderCreditorRegistry);
+$("creditorRegistryCancel").onclick = () => {
+  resetCreditorForm();
+  $("creditorRegistryStatus").textContent = "";
+};
 $("creditorRegistryForm").onsubmit = event => {
   event.preventDefault();
   const label = $("creditorRegistryName").value.trim().replace(/\s+/g, " ");
@@ -246,15 +287,22 @@ $("creditorRegistryForm").onsubmit = event => {
   try {
     if (!creditorRegistry) throw Error("Cadastro de credores indisponível neste navegador.");
     if (!label || id === "__sem_credor__") throw Error("Informe o nome do credor.");
-    if (creditorRegistry.read().some(record => record.id === id)) {
-      status.textContent = "Este credor já está cadastrado.";
-      return;
+    const directory = creditorDirectory();
+    const target = editingCreditor;
+    const collision = [...directory].some(([key, name]) => key !== target?.id && (key === id || creditorKey(name) === id));
+    if (target) {
+      if (collision) throw Error("Já existe outro credor com esse nome. Escolha um nome diferente.");
+      const original = target.record?.label || target.name;
+      creditorRegistry.write(target.id, { id: target.id, label: original, displayName: label }, target.record);
+    } else {
+      if ([...creditorRecords.values()].some(record => record.id === id || creditorKey(record.displayName || record.label) === id) ||
+          (collision && !directory.has(id))) throw Error("Este credor já está cadastrado.");
+      creditorRegistry.write(id, { id, label }, null);
     }
-    creditorRegistry.write(id, { id, label }, null);
-    $("creditorRegistryForm").reset();
+    resetCreditorForm();
     refreshCreditorDirectory();
     ReisDrive.changed();
-    status.textContent = "Credor cadastrado.";
+    status.textContent = target ? "Nome do credor atualizado." : "Credor cadastrado.";
   } catch (error) {
     status.textContent = error.message;
   }
